@@ -73,8 +73,8 @@ description: 把已定稿的功能测试用例 Markdown（含 TC 编号）转成
 > 过滤器匹配不到某些测试结构时，会报 0 条且构建成功 —— 这是最危险的假绿。
 
 探测结果要写成一份「脚手架约定」，避免每个测试文件重踩同一批坑。
-已有附录：Java / Maven / JUnit5 / Mockito / MyBatis Plus 见 [java-maven-pitfalls.md](java-maven-pitfalls.md)。
-其他栈按该文件的格式（探测清单 + 分级坑列表）新建 `<栈名>-pitfalls.md`。
+已有附录：Java / Maven / JUnit5 / Mockito / MyBatis Plus 见 [references/java-maven-pitfalls.md](references/java-maven-pitfalls.md)。
+其他栈按该文件的格式（探测清单 + 分级坑列表）新建 `references/<栈名>-pitfalls.md`。
 
 ### 阶段 1：定性 —— 用例 ↔ 代码落点映射
 
@@ -154,7 +154,7 @@ description: 把已定稿的功能测试用例 Markdown（含 TC 编号）转成
 10 条评审维度、输出格式，并**要求它自己跑一遍测试并按 Tag 分组核对条数**（不许只静态读代码）。
 不依赖 git diff（工作区可能不是 git 仓库，或改动未提交）。
 
-评审维度与可直接复用的 prompt 模板见 [review-dimensions.md](review-dimensions.md)。
+评审维度与可直接复用的 prompt 模板见 [references/review-dimensions.md](references/review-dimensions.md)。
 
 **循环规则**：
 
@@ -217,7 +217,7 @@ python scripts/check_tc_refs.py --docs <用例目录> --tests <测试源码目�
 > 只用包含条件会把 impl / deviation 测试也算进「判据通过」。
 > 每次执行都要做加减核对：`全量 = 门禁 + 纯impl + 叠加部分`，对不上说明标记打错了。
 
-各栈的具体参数与已验证的坑见对应附录（当前：[java-maven-pitfalls.md](java-maven-pitfalls.md)）。
+各栈的具体参数与已验证的坑见对应附录（当前：[references/java-maven-pitfalls.md](references/java-maven-pitfalls.md)）。
 
 ## 产物清单
 
@@ -233,9 +233,9 @@ python scripts/check_tc_refs.py --docs <用例目录> --tests <测试源码目�
 
 ## 参考资料
 
-- 评审维度（10 条）与子 agent prompt 模板：[review-dimensions.md](review-dimensions.md)
+- 评审维度（10 条）与子 agent prompt 模板：[references/review-dimensions.md](references/review-dimensions.md)
 - 技术栈附录（阶段 0 探测清单 + 已验证的坑）：
-  - [java-maven-pitfalls.md](java-maven-pitfalls.md) —— Java / Maven / JUnit5 / Mockito / MyBatis Plus
-  - 其他栈执行时现场探测，并把结论沉淀成同格式的新附录（`<栈名>-pitfalls.md`）
+  - [references/java-maven-pitfalls.md](references/java-maven-pitfalls.md) —— Java / Maven / JUnit5 / Mockito / MyBatis Plus
+  - 其他栈执行时现场探测，并把结论沉淀成同格式的新附录（`references/<栈名>-pitfalls.md`）
 - TC 引用反向校验脚本：`scripts/check_tc_refs.py`
   （跳语言：靠 `--tc-pattern` 适配编号格式、`--test-marker` 适配用例名注解）
