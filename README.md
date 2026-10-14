@@ -1,5 +1,7 @@
 # testcase-to-unittest
 
+[![skills.sh](https://skills.sh/b/zouaiyong/testcase-to-unittest)](https://skills.sh/zouaiyong/testcase-to-unittest)
+
 把已经定稿、带 TC 编号的功能测试用例，落成可追溯的自动化单测。断言只来自用例判据；实现和判据不一致时测试保持失败，失败原因写进报告，交给开发改实现。
 
 这个 skill 要拦住的是「测试把自己改绿」：不改断言迁就实现，不改开发代码让测试通过，不用分组或标记把失败从报告里拿掉。
@@ -77,25 +79,111 @@
 
 ## 安装
 
-仓库根目录要有 `SKILL.md`。克隆到 agent 会扫描的 skills 目录，目录名保持 `testcase-to-unittest`。
+本仓库按 [Agent Skills](https://agentskills.io) 规范发布：`SKILL.md` 在仓库根目录，`name` 为 `testcase-to-unittest`。源码在公开仓库 [zouaiyong/testcase-to-unittest](https://github.com/zouaiyong/testcase-to-unittest)。[skills.sh](https://skills.sh) 只做索引，安装时从这份 Git 仓库拉取；ClawHub 上架后另有版本记录，安装命令见下一节。
 
-用户级（本机所有项目都能触发）：
+装完后新开一个会话，agent 才会重新发现 skill。追溯脚本需要 Python 3，无第三方依赖，可在 skill 目录里自检：
 
-```powershell
-git clone https://github.com/zouaiyong/testcase-to-unittest.git "$env:USERPROFILE\.agents\skills\testcase-to-unittest"
+```bash
+python scripts/check_tc_refs.py --selftest
 ```
+
+### skills.sh（推荐）
+
+[skills.sh](https://skills.sh) 是开放 skill 目录，用 [skills CLI](https://github.com/vercel-labs/skills) 安装。命令在项目根目录执行。交互安装时选择要写入的 agent；脚本里加上 `-y` 跳过确认。
+
+装到**当前项目**（可提交给团队）：
+
+```bash
+npx skills add zouaiyong/testcase-to-unittest
+```
+
+装到**本机所有项目**：
+
+```bash
+npx skills add zouaiyong/testcase-to-unittest -g
+```
+
+只装给 Cursor、Claude Code、Codex：
+
+```bash
+npx skills add zouaiyong/testcase-to-unittest -a cursor -a claude-code -a codex
+```
+
+Windows 上符号链接经常失败，改用复制：
+
+```bash
+npx skills add zouaiyong/testcase-to-unittest -g --copy
+```
+
+等价的完整地址：
+
+```bash
+npx skills add https://github.com/zouaiyong/testcase-to-unittest
+```
+
+更新已安装的副本：
+
+```bash
+npx skills update testcase-to-unittest
+npx skills update testcase-to-unittest -g
+```
+
+CLI 按所选 agent 写入对应目录，目录名与 frontmatter 的 `name` 一致：
+
+| Agent | `--agent` | 项目内 | 用户级（`-g`） |
+|---|---|---|---|
+| Cursor | `cursor` | `.agents/skills/` | `~/.cursor/skills/` |
+| Claude Code | `claude-code` | `.claude/skills/` | `~/.claude/skills/` |
+| Codex 等 | `codex` | `.agents/skills/` | `~/.agents/skills/` |
+| OpenClaw | `openclaw` | `skills/` | `~/.openclaw/skills/` |
+
+其余 agent 的参数和路径见 [skills CLI 的 Supported Agents](https://github.com/vercel-labs/skills#supported-agents)。
+
+目录页在有人用 CLI 安装、且未设置 `DISABLE_TELEMETRY=1` 之后出现：[skills.sh/zouaiyong/testcase-to-unittest](https://skills.sh/zouaiyong/testcase-to-unittest)。单条 skill 页的 slug 用 frontmatter 里的 `name`：[testcase-to-unittest](https://skills.sh/zouaiyong/testcase-to-unittest/testcase-to-unittest)。
+
+### ClawHub / OpenClaw
+
+[ClawHub](https://clawhub.ai) 是 OpenClaw 的注册表。上架前可直接从 Git 安装，slug 取 `SKILL.md` 里的 `name`：
+
+```bash
+openclaw skills install git:zouaiyong/testcase-to-unittest
+openclaw skills install git:zouaiyong/testcase-to-unittest --global
+```
+
+在 ClawHub 发布之后，用注册表上的 owner 安装（把 `<owner>` 换成发布账号）：
+
+```bash
+openclaw skills install @<owner>/testcase-to-unittest
+clawhub install @<owner>/testcase-to-unittest
+```
+
+发布命令在本仓库根目录执行：
+
+```bash
+npm i -g clawhub
+clawhub login
+clawhub skill publish . --slug testcase-to-unittest --name "testcase-to-unittest" --version 1.0.0
+```
+
+发布参数以 [ClawHub 文档](https://docs.openclaw.ai/clawhub/) 为准。skills.sh 上已索引的条目，OpenClaw 也可以按来源安装：
+
+```bash
+openclaw skills install skills-sh:zouaiyong/testcase-to-unittest/testcase-to-unittest
+```
+
+### 手动克隆
+
+不走目录时，把仓库克隆到上表里对应 agent 的 skills 目录，文件夹名保持 `testcase-to-unittest`。
 
 ```bash
 git clone https://github.com/zouaiyong/testcase-to-unittest.git ~/.agents/skills/testcase-to-unittest
 ```
 
-Claude Code 使用 `~/.claude/skills/testcase-to-unittest`。只想在某一个代码仓库里启用时，克隆到该仓库的 `.agents/skills/testcase-to-unittest`。
-
-追溯脚本需要 Python 3，无第三方依赖：
-
-```bash
-python scripts/check_tc_refs.py --selftest
+```powershell
+git clone https://github.com/zouaiyong/testcase-to-unittest.git "$env:USERPROFILE\.agents\skills\testcase-to-unittest"
 ```
+
+Cursor 的用户级目录是 `%USERPROFILE%\.cursor\skills\testcase-to-unittest`，Claude Code 是 `%USERPROFILE%\.claude\skills\testcase-to-unittest`。只在某一个代码仓库里启用时，克隆到该仓库的 `.agents/skills/testcase-to-unittest`。
 
 ## 怎么开始一轮
 
