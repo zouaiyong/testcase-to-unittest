@@ -10,12 +10,15 @@
   - Markdown：编号写在标题开头（# ~ ###### TC-0001 ...）
   - CSV：编号写在「用例编号」列（没有该列时取第 1 列），可带 BOM
 
-检查五项：
+检查六项：
   1. 悬空引用   测试引用了用例文档里不存在的编号      → 门禁失败
   2. 裸号引用   引用没带文件名（编号跨文件会重复）        → 分级告警
   3. 疑似虚报   编号只在注释里声称、没对应用例名声明     → 告警
   4. 未覆盖     用例文档里的编号没有任何测试引用        → 统计
   5. 矩阵对账   传了 --matrix 才做：A 虚报已写 / B 漏登 / C 零归属 → 门禁失败；D 逐条方法数 → 咨询
+  6. 仅 impl    编号只被带 impl 标记的方法引用、没有一条 case 断言 → 门禁失败
+                （impl 不得用来覆盖用例已写明的判据；标记识别是启发式，
+                  误报时用 --impl-tag-pattern 对齐项目的标记写法，不要关掉）
 
 跟语言/框架无关：编号前缀、用例名标记、测试方法声明、文档后缀、否定词均可参数化。
 
@@ -33,13 +36,14 @@
                      并配 --test-annotation-pattern（见 --help）
   文档后缀不同      → --doc-glob "*.markdown,*.csv"（逗号分隔多个模式）
   非中文项目        → --negation-pattern "not covered|uncovered|N/A"
+  impl 标记不同    → --impl-tag-pattern "pytest[.]mark[.]impl"（pytest）/ "[[]impl[]]"（jest 用例名里）
 
 Windows PowerShell 下管道会按控制台代码页解码导致中文乱码，两种解法：
   1) 先执行 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
   2) 用 --out 写到 UTF-8 文件再看
 
-退出码: 0 = 门禁通过；1 = 门禁失败（悬空引用、裸号指向不存在的用例、矩阵对账 A/B/C 或归属总账不自洽）；
-        2 = 参数或读取错误
+退出码: 0 = 门禁通过；1 = 门禁失败（悬空引用、裸号真歧义或指向不存在、矩阵对账 A/B/C、
+        归属总账不自洽、仅 impl 覆盖）；2 = 参数或读取错误
 """
 
 import argparse
@@ -191,6 +195,7 @@ def _selftest():
             '    @Test\n'
             '    void implOnly() {}\n'
             '}\n')
+    impl_re = re.compile(r'@Tag\("impl"\)')
     jest = ("describe('g', () => {\n"
             "  it('a.md#TC-0001 x', () => {\n"
             "  });\n"
@@ -206,11 +211,44 @@ def _selftest():
         configure('TC-', 4, marker, '*.md,*.csv', None)
         with tempfile.TemporaryDirectory() as td:
             (Path(td) / name).write_text(text, encoding='utf-8')
-            _total, per_tc, unattributed, _shared = scan_methods(
-                Path(td), docs, build_ref_regex(docs), re.compile(anno))
+            _total, per_tc, unattributed, _shared, _case = scan_methods(
+                Path(td), docs, build_ref_regex(docs), re.compile(anno), impl_re)
         got = ({n: round(v, 2) for (_md, n), v in per_tc.items()}, len(unattributed))
         if got != want:
             bad.append(('scan_methods(%s) -> (归属, 无法归属数)' % name, got, want))
+
+    # 仅 impl 识别：方法级 impl 标记（含夹在 @Test 与声明之间的）、类级 impl 标记都要认；
+    # 类级 case + 方法级 impl 的方法算 impl；没有 impl 标记的方法算 case
+    configure('TC-', 4, '@DisplayName', '*.md,*.csv', None)
+    java2 = ('@Tag("case")\n'
+             'class T {\n'
+             '    @Test\n'
+             '    @Tag("impl")\n'
+             '    @DisplayName("a.md#TC-0001 文案锁实现")\n'
+             '    void a() {}\n'
+             '    @Test\n'
+             '    @DisplayName("a.md#TC-0001 用例判据")\n'
+             '    void b() {}\n'
+             '    @Test @Tag("impl") @DisplayName("a.md#TC-0002 只有实现断言")\n'
+             '    void c() {}\n'
+             '}\n'
+             '@Tag("impl")\n'
+             'class U {\n'
+             '    @Test\n'
+             '    @DisplayName("a.md#TC-0003 类级 impl")\n'
+             '    void d() {}\n'
+             '}\n')
+    docs2 = {'a.md': {1, 2, 3}}
+    with tempfile.TemporaryDirectory() as td:
+        (Path(td) / 'T.java').write_text(java2, encoding='utf-8')
+        _total, per_tc, _un, _sh, per_tc_case = scan_methods(
+            Path(td), docs2, build_ref_regex(docs2),
+            re.compile(r'^\s*@Test\b'), impl_re)
+    got = ({n: round(v, 2) for (_md, n), v in per_tc.items()},
+           {n: round(v, 2) for (_md, n), v in per_tc_case.items()})
+    want = ({1: 2.0, 2: 1.0, 3: 1.0}, {1: 1.0})
+    if got != want:
+        bad.append(('scan_methods(impl) -> (全部归属, case 归属)', got, want))
     return bad
 
 
@@ -335,7 +373,8 @@ def load_matrix(path, re_ref):
     其他表头（如环境基线表、四态表）会重置列映射，不会误当成数据行。
     返回 [{'tcs': set((md名,编号)), 'expected': int|None, 'status': str, 'line': int}]
     """
-    lines = path.read_text(encoding='utf-8').splitlines()
+    # utf-8-sig：Windows 编辑器 / PowerShell 写出的 md 常带 BOM，不去掉首行 '|' 认不出来
+    lines = path.read_text(encoding='utf-8-sig').splitlines()
 
     rows = []
     col_expected = col_status = None
@@ -376,7 +415,34 @@ def load_matrix(path, re_ref):
     return rows
 
 
-def scan_methods(tests_dir, docs, re_ref, anno_re):
+def _method_block(lines, i):
+    """测试方法 i 的注解/装饰器块行号区间 [start, end]。
+
+    向上吞连续的 @ 行、空行、注释行（遇到上一个方法的 `}` 或类声明即停）；
+    向下吞到第一个不以 @ 开头的非空行（即方法声明行）为止。
+    用于判定方法级标记（如夹在 @Test 与声明之间的 @Tag("impl")）。
+    """
+    start = i
+    k = i - 1
+    while k >= 0:
+        s = lines[k].strip()
+        if s.startswith('@') or not s or is_comment_line(lines[k]):
+            start = k
+            k -= 1
+        else:
+            break
+    end = i
+    k = i + 1
+    while k < len(lines):
+        s = lines[k].strip()
+        end = k
+        if s and not s.startswith('@'):
+            break
+        k += 1
+    return start, end
+
+
+def scan_methods(tests_dir, docs, re_ref, anno_re, impl_re=None):
     """统计测试方法数，并把每个方法归属到编号。
 
     归属规则（写死，避免各人理解不同）：
@@ -387,9 +453,14 @@ def scan_methods(tests_dir, docs, re_ref, anno_re):
       3. 一个标记覆盖 N 个编号时，该方法对每个编号各计 1/N，
          于是「各编号归属数之和 == 已归属方法数（= 总数 - 无法归属数）」恒成立，总账可对
       4. 两步都取不到 → 计入「无法归属」并单列，不静默算 0
+
+    impl 判定（启发式，传了 impl_re 才做）：方法自己的注解块里出现 impl 标记，
+    或文件里更靠前、不属于任何方法注解块的 impl 标记行（视为类级）→ 该方法算 impl。
+    返回的第 5 项 per_tc_case 只累计**非 impl** 方法的归属，用于发现「编号只被 impl 覆盖」。
     """
     total = 0
     per_tc = {}
+    per_tc_case = {}
     unattributed = []
     shared_from = set()
 
@@ -443,29 +514,49 @@ def scan_methods(tests_dir, docs, re_ref, anno_re):
             if refs:
                 class_markers.append((j, refs))
 
+        # impl 判定：先算每个方法的注解块，块外的 impl 标记行视为类级
+        blocks = {i: _method_block(lines, i) for i in anno_lines} if impl_re else {}
+        in_block = set()
+        for start, end in blocks.values():
+            in_block.update(range(start, end + 1))
+        class_impl_lines = [k for k, l in enumerate(lines)
+                            if impl_re and k not in in_block and impl_re.search(l)]
+
+        def is_impl(i):
+            if not impl_re:
+                return False
+            start, end = blocks[i]
+            if any(impl_re.search(lines[k]) for k in range(start, end + 1)):
+                return True
+            return any(k < i for k in class_impl_lines)
+
+        def credit(refs, i):
+            share = 1.0 / len(refs)
+            impl = is_impl(i)
+            for key in refs:
+                per_tc[key] = per_tc.get(key, 0) + share
+                if not impl:
+                    per_tc_case[key] = per_tc_case.get(key, 0) + share
+
         for i in anno_lines:
             total += 1
             if i in own:
                 refs = own[i][1]
-                share = 1.0 / len(refs)
                 if len(refs) > 1:
                     shared_from.add(path)
-                for key in refs:
-                    per_tc[key] = per_tc.get(key, 0) + share
+                credit(refs, i)
                 continue
             inherited = None
             for j, refs in class_markers:
                 if j < i:
                     inherited = refs
             if inherited:
-                share = 1.0 / len(inherited)
                 shared_from.add(path)
-                for key in inherited:
-                    per_tc[key] = per_tc.get(key, 0) + share
+                credit(inherited, i)
             else:
                 unattributed.append((path, i + 1))
 
-    return total, per_tc, unattributed, shared_from
+    return total, per_tc, unattributed, shared_from, per_tc_case
 
 
 def main():
@@ -490,6 +581,10 @@ def main():
                         default=r'^\s*@(Test|ParameterizedTest|RepeatedTest|TestFactory)\b',
                         help='测试方法注解行的正则；pytest 用 "^\\s*def test_"，'
                              'jest 用 "^\\s*(it|test)\\("，go 用 "^func Test"')
+    parser.add_argument('--impl-tag-pattern', default=r'@Tag\(\s*"impl"\s*\)',
+                        help='impl 标记的正则，默认 JUnit5 的 @Tag("impl")；'
+                             'pytest 用 "pytest\\.mark\\.impl"，jest 可用用例名里的 "\\[impl\\]"；'
+                             '项目用常量/元注解时把它们也写进正则（如 "@Tag\\(\\s*\\"impl\\"\\s*\\)|@ImplTest"）')
     parser.add_argument('--selftest', action='store_true',
                         help='只跑内置的编号展开回归用例，不扫目录')
     args = parser.parse_args()
@@ -507,7 +602,7 @@ def main():
             for name, got, want in bad:
                 print('  %s -> %s，应为 %s' % (name, got, want))
             return 1
-        print('SELFTEST PASS —— 编号展开、分隔行、CSV 编号列、方法归属的回归用例全部通过')
+        print('SELFTEST PASS —— 编号展开、分隔行、CSV 编号列、方法归属、impl 识别的回归用例全部通过')
         return 0
 
     if args.out:
@@ -631,6 +726,7 @@ def main():
     print('【2】裸号引用（用例名里没带文件名）: 真歧义 %d / 指向不存在 %d / 可推断 %d / 无锚点 %d'
           % (len(bare_ambiguous), len(bare_dangling), len(bare_single), len(bare_noanchor)))
     if bare_ambiguous:
+        fail = True
         print('  🔴 真歧义：该编号在本文件引用的多份文档里都存在，无法判定指哪一条')
         for path, lineno, n, owners in bare_ambiguous:
             print('     %s:%d  %s  （同时存在于: %s）' % (path, lineno, fmt_tc(n), ', '.join(owners)))
@@ -667,13 +763,15 @@ def main():
         print()
     print()
 
+    # ---- 方法归属（矩阵对账与「仅 impl」检查共用）----
+    re_ref = build_ref_regex(docs.keys())
+    anno_re = re.compile(args.test_annotation_pattern)
+    impl_re = re.compile(args.impl_tag_pattern) if args.impl_tag_pattern else None
+    total_methods, per_tc, unattributed, shared_from, per_tc_case = scan_methods(
+        tests_dir, docs, re_ref, anno_re, impl_re)
+
     # ---- 矩阵 ↔ 代码 对账（仅当传了 --matrix）----
     if rows is not None:
-        re_ref = build_ref_regex(docs.keys())
-        anno_re = re.compile(args.test_annotation_pattern)
-        total_methods, per_tc, unattributed, shared_from = scan_methods(
-            tests_dir, docs, re_ref, anno_re)
-
         matrix_tcs = set()
         written_tcs = set()
         expected_sum = 0
@@ -755,12 +853,32 @@ def main():
                 print('     %s:%d' % (path, lineno))
         print()
 
+    # ---- 6 仅 impl 覆盖：编号有方法归属，但没有一个方法是 case（全带 impl 标记）----
+    impl_only = []
+    if impl_re is not None:
+        impl_only = sorted(k for k in covered
+                           if per_tc.get(k, 0) > 0 and per_tc_case.get(k, 0) <= 0)
+        print('【6】仅 impl 覆盖（编号只被带 impl 标记的方法引用，没有一条 case 断言）: %d'
+              % len(impl_only))
+        if total_methods == 0:
+            print('  ℹ️  按 --test-annotation-pattern 没扫到任何测试方法，本项无结论')
+        if impl_only:
+            fail = True
+            for md_name, n in impl_only:
+                print('  🔴 %s#%s' % (md_name, fmt_tc(n)))
+            print('     ↳ impl 不得用来覆盖用例已写明的判据：要么补 case 断言，'
+                  '要么证明该条全部明细行都是【待确认】并把它移出矩阵。'
+                  '标记识别是启发式（方法注解块 + 文件内靠前的类级标记）；'
+                  '项目用常量或元注解表示 impl 时，用 --impl-tag-pattern 对齐，不要关掉本项')
+        print()
+
     print('=' * 68)
     if fail:
         print('结果: FAIL —— 门禁不通过（见上方 🔴 项）')
         return 1
-    print('结果: PASS —— 无悬空引用（无锚点 %d 处、可推断裸号 %d 处、疑似虚报 %d 处需人工确认）'
-          % (len(bare_noanchor), len(bare_single), len(suspected)))
+    print('结果: PASS —— 无悬空引用、无仅 impl 覆盖（无锚点 %d 处、可推断裸号 %d 处、'
+          '疑似虚报 %d 处需人工确认；未覆盖编号 %d 个，单测报告写「通过」要求此数为 0）'
+          % (len(bare_noanchor), len(bare_single), len(suspected), len(uncovered)))
     return 0
 
 

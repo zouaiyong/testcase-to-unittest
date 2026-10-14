@@ -41,7 +41,7 @@ java -version
 | 项 | 为什么必须知道 |
 |---|---|
 | Java 语言级别 | Java 8 **没有 `var`**，写了编译不过 |
-| Spring Boot 版本 | 决定 starter-test 里带了什么（2.4 起不含 vintage 引擎） |
+| Spring Boot 版本 → 测试引擎完整性 | 决定 starter-test 里带了什么（2.4 起不含 vintage 引擎）；这就是 SKILL.md 六项里的「测试引擎是否齐全」 |
 | JUnit 版本（4 还是 5） | 两套 API 的注解、断言参数顺序、扩展模型全不同 |
 | Mockito 版本 | **5.x 之前 `mockStatic` 必须额外加 `mockito-inline`** |
 | ORM 及版本 | 链式 API 的 mock 姿势、方法返回类型都随版本变 |
@@ -162,7 +162,7 @@ Set<ConstraintViolation<T>> violations = validator.validate(po);
 只用 `-Dgroups=case` 会把它算进判据门禁。
 
 **处置**：门禁命令为 `-Dgroups=case -DexcludedGroups=impl`。不要再排除 `deviation`。实现和用例不符的测试必须失败，不能靠分组从失败列表里消失。
-并每次做加减核对：`全量 = 门禁 + 纯impl + 叠加部分`，对不上说明 Tag 打错了。
+并每次做加减核对：`全量 = 判据门禁（含失败）+ 带 impl 标记的测试（纯 impl + case/impl 叠加）`，对不上说明 Tag 打错了。
 或者干脆**不在嵌套类上打 Tag，逐个方法打**（更啰嗦但无歧义）。
 
 ## 🟡 坑 9：静态上下文调用需要 inline mock maker
