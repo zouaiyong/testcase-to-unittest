@@ -161,7 +161,7 @@ Set<ConstraintViolation<T>> violations = validator.validate(po);
 所以「外层 `@Tag("case")` + 方法 `@Tag("impl")`」的测试同时带两个 Tag，
 只用 `-Dgroups=case` 会把它算进判据门禁。
 
-**处置**：门禁命令固定为 `-Dgroups=case -DexcludedGroups=impl,deviation`，
+**处置**：门禁命令为 `-Dgroups=case -DexcludedGroups=impl`。不要再排除 `deviation`。实现和用例不符的测试必须失败，不能靠分组从失败列表里消失。
 并每次做加减核对：`全量 = 门禁 + 纯impl + 叠加部分`，对不上说明 Tag 打错了。
 或者干脆**不在嵌套类上打 Tag，逐个方法打**（更啰嗦但无歧义）。
 
@@ -225,3 +225,21 @@ verify(updateChain).set(columnNamed("reason"), eq("本次填写的内容"));
 
 解析失败要**抛异常**而不是返回 `null`——静默返回 null 会让 matcher 永不匹配，
 `verify` 报的却是「没有期望的调用」，把人引向错误的排查方向。
+
+## 分支改动的行覆盖率
+
+单测报告第 4 节用例覆盖之后要写这个数。不要改 pom 把 JaCoCo 绑进构建，用命令行插件即可。`prepare-agent` 必须写在 `test` 前面，surefire 才会带上 agent。有失败也要出报告，所以加上 `maven.test.failure.ignore`。
+
+```text
+mvn -pl <被测模块> org.jacoco:jacoco-maven-plugin:0.8.12:prepare-agent test org.jacoco:jacoco-maven-plugin:0.8.12:report -Dmaven.test.failure.ignore=true
+```
+
+报告在 `<模块>/target/site/jacoco/jacoco.xml`。再和分支 diff 求交：
+
+- 基线默认 `origin/master`。用 `git diff -U0 origin/master...HEAD -- *.java` 取出 `src/main/java` 的新增和修改行。
+- 一行算进分母，当且仅当它既在 diff 里，又出现在 JaCoCo 的 `line` 节点上。注释、空行、import 没有 `line` 节点，不算。
+- `ci > 0` 算已覆盖。失败用例在断言前执行过的行算已覆盖。
+- 基线上已有、本分支没改的类（启动类、公共配置）在 JaCoCo 全量里，不在 diff 里，必须剔掉。不要直接抄 JaCoCo HTML 首页的整模块百分比。
+- 同一分支还有别的需求时，只保留本需求相关的改动文件进这份报告的分母。类表要写到未覆盖的方法名。
+
+用例范围写了不测的入口，覆盖率可以是 0。写明原因即可，不要为了百分比去补那批测试，也不要改开发代码。
