@@ -34,31 +34,13 @@
 
 ## 安装
 
-`SKILL.md` 在仓库根目录。装完后新开一个会话。追溯脚本需要 Python 3。
-
-当前项目：
-
 ```bash
 npx skills add zouaiyong/testcase-to-unittest
 ```
 
-本机所有项目加 `-g`。Windows 符号链接失败时加 `--copy`：
+会装到 `~/.agents/skills/testcase-to-unittest`。WorkBuddy、Claude Code 不读这个目录，装完后让对应 Agent 把该路径软链接到自己的 skills 目录（WorkBuddy：`~/.workbuddy/skills/testcase-to-unittest`；Claude Code：`~/.claude/skills/testcase-to-unittest`）。Windows 建不了软链接就用目录联接。链好后新开一轮对话即可被发现。
 
-```bash
-npx skills add zouaiyong/testcase-to-unittest -g --copy
-```
-
-指定 agent：`-a cursor`、`-a claude-code`、`-a codex`。更新：`npx skills update testcase-to-unittest`。
-
-OpenClaw 从 Git 安装：
-
-```bash
-openclaw skills install git:zouaiyong/testcase-to-unittest
-```
-
-ClawHub 上架后：`openclaw skills install @<owner>/testcase-to-unittest`。手动克隆时文件夹名保持 `testcase-to-unittest`，放到对应 agent 的 skills 目录（Cursor 用户级是 `~/.cursor/skills/`，Claude Code 是 `~/.claude/skills/`，Codex 是 `~/.agents/skills/`）。
-
-目录页在有人用 CLI 安装后出现：[skills.sh/zouaiyong/testcase-to-unittest](https://skills.sh/zouaiyong/testcase-to-unittest)。
+也可以把本仓库直接放到上述目录。目录里必须有 `SKILL.md`。
 
 ## 怎么用
 
