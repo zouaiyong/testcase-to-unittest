@@ -161,7 +161,7 @@ Set<ConstraintViolation<T>> violations = validator.validate(po);
 所以「外层 `@Tag("case")` + 方法 `@Tag("impl")`」的测试同时带两个 Tag，
 只用 `-Dgroups=case` 会把它算进判据门禁。
 
-**处置**：门禁命令为 `-Dgroups=case -DexcludedGroups=impl`。不要再排除 `deviation`。实现和用例不符的测试必须失败，不能靠分组从失败列表里消失。
+**处置**：门禁命令为 `-Dgroups=case -DexcludedGroups=impl`，排除项只有 `impl`；实现和用例不符的测试按硬约束 1 保持失败，不靠分组从失败列表里消失。
 并每次做加减核对：`全量 = 判据门禁（含失败）+ 带 impl 标记的测试（纯 impl + case/impl 叠加）`，对不上说明 Tag 打错了。
 或者干脆**不在嵌套类上打 Tag，逐个方法打**（更啰嗦但无歧义）。
 

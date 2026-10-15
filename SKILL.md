@@ -1,6 +1,6 @@
 ---
 name: testcase-to-unittest
-description: 用户要把已定稿、带 TC 编号的功能测试用例（testcase-design 产出的 XMind 版 Markdown 或 Excel/CSV）落成自动化单测，说「写单测 / 补单测 / 对着用例把能单测的写成单测」，要核对断言是否与用例判据一致，或要建立用例到测试的追溯门禁时使用。前提是用例已定稿且实现代码已存在。不负责从 PRD 设计用例（用 testcase-design），不改开发实现代码。
+description: 把已定稿、带 TC 编号的功能测试用例（testcase-design 产出的 XMind 版 Markdown 或 Excel/CSV）落成分层自动化单测：断言只来自用例判据，产出覆盖矩阵、独立评审记录、七节单测报告和 TC 到测试的追溯门禁。用户说「写单测 / 补单测 / 对着用例把能单测的写成单测」、要核对断言是否与用例判据一致、要建用例到测试的追溯门禁时使用；只要提到 TC 编号、覆盖矩阵、判据门禁或用例入库，即使没说「单测」也用。前提是用例已定稿且实现代码已存在。不负责从 PRD 设计用例（用 testcase-design），不评审用例本身（用 testcase-closed-loop），不改开发实现代码；没有功能用例、只想给某个类补测试的普通请求不用本 skill。
 ---
 
 # 功能测试用例 → 分层自动化单测
@@ -114,18 +114,7 @@ description: 用户要把已定稿、带 TC 编号的功能测试用例（testca
 
 引用约定：测试类注释、用例名注解、断言说明三处都写 `<用例文件>.md#TC-0008` 这种**带文件名**的回指；TC 号只用文档里写的那个；方法级标记自带 `文件名#编号`。原因与反例见 [traceability.md](references/traceability.md)。
 
-断言强度：
-
-- 数值断言同时锁**值和小数位**（很多语言的十进制相等比较忽略标度，`1.0` 与 `1.0000` 被判相等；比字符串形式最稳）
-- 文案判据**逐字**比对，不用包含匹配
-- 判据写「按 X+Y+Z 维度」的，必须真的断言到维度入参；断言不到就在用例名里**明说验不了**，禁止空头承诺
-- 「合计恒等于总额」这类不变量，每组夹具都要验
-- 不用弱断言：「大于 0」该写成「等于 1」；判据写了文案却只断异常类型不断消息，等于没断
-- 判据没给文案（如只写「提交被拦截」）时，断言「被拦截 + 副作用没发生」，并证明拦下它的是这条规则（其余校验用夹具放行，断言这条规则确实执行到了）。代码里现有文案要锁只能另写 `impl` 断言，不写进 `case`；文案行带【待确认】的拍板前不锁
-- 期望值不得等于 mock 夹具原值（同义反复 = 没测）
-- 判据是公式的，夹具里每个因子都取**非平凡值**（≠0、≠1、互不相等，舍入位有尾数），并至少两组数据；标准是「任一因子漏算或算错，断言都会红」。选 B=1 让「少乘一个系数」的实现也通过，等于没测
-- 断言必须**无条件可达**：不包在 `if` 里、不放在可能不执行的回调或流里；`try/catch` 里捕到异常必须 `fail()`，不许吞掉。评审会按「怎样改坏生产码它仍绿」逐个方法问
-- **不 spy 被测类、不 `doReturn` 被测方法**。mock 只打在协作方上；把被测逻辑本身换掉的测试测的是 mock
+断言强度按 [assertion-rules.md](references/assertion-rules.md) 的十条逐方法对照，核心一句话：对每个测试方法回答「怎样改坏生产码它仍绿」，答得出来就是漏洞。评审方按同一份规则反查。
 
 每轮实现完跑全量，核对**测试方法数 = 矩阵预期方法数之和**，并做加减：`全量 = 判据门禁（含失败）+ 带 impl 标记的测试（纯 impl 与 case+impl 叠加都算）`。
 
@@ -185,6 +174,7 @@ python <skill目录>/scripts/check_tc_refs.py --docs doc/testcases --tests <测�
 
 - 阶段契约（输入 / 交付物模板 / 完成标准 / 回退 / 增量执行）：[stage-contracts.md](references/stage-contracts.md)
 - 读用例（两种产物格式、判据认定、按行归层）：[reading-testcases.md](references/reading-testcases.md)
+- 断言规则（十条，每条标明防的是哪种假绿）：[assertion-rules.md](references/assertion-rules.md)
 - 引用约定、门禁命令、追溯脚本六项检查：[traceability.md](references/traceability.md)
 - 评审维度（10 条）与子 agent prompt 模板：[review-dimensions.md](references/review-dimensions.md)
 - 技术栈附录：[java-maven-pitfalls.md](references/java-maven-pitfalls.md)；其他栈现场探测后新建 `references/<栈名>-pitfalls.md`
