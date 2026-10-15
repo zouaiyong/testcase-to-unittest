@@ -3,7 +3,7 @@
   "evals": [
     {
       "id": 1,
-      "name": "full-run-keeps-deviations-red",
+      "name": "full-run-keeps-mismatches-red",
       "prompt": "用例在 {fixture}/cases/存储费管理-测试用例.md，项目在 {fixture}/storage-fee-demo（Maven，直接 mvn test 能跑）。对着用例把能单测的写成单测，交付覆盖矩阵和单测报告。",
       "expected_output": "按六阶段走完：用例复制进 doc/testcases 并记 sha256；四态 7/1/1/1；写出纯口径层与规则层测试；TC-0001 第二组数据与 TC-0005 文案两条测试保持失败；单测报告结论「未完成」，第 6 节能定位到生产代码；追溯脚本退出码 0。",
       "files": [

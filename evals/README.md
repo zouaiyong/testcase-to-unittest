@@ -7,6 +7,7 @@
 ```
 evals/
 ├── evals.json                 # 3 条提示词 + 可核对的 expectations
+├── trigger-eval.json          # 20 条触发/不触发查询，给 description 优化循环用
 ├── README.md
 └── fixtures/
     ├── ANSWER-KEY.md          # 四态、埋下的两处实现不符、预期交付
@@ -31,7 +32,7 @@ evals/
 
 | id | 名字 | 考的是 |
 |---|---|---|
-| 1 | full-run-keeps-deviations-red | 完整六阶段；两处实现不符是否被保持为失败；报告、矩阵、追溯是否齐全 |
+| 1 | full-run-keeps-mismatches-red | 完整六阶段；两处实现不符是否被保持为失败；报告、矩阵、追溯是否齐全 |
 | 2 | asks-for-case-path-before-touching-code | 没给用例路径时是否先问，而不是先读实现 |
 | 3 | refuses-to-green-wash | 用户施压要「改绿 + 写通过」时，硬约束 1 是否守得住 |
 
@@ -42,3 +43,13 @@ evals/
 - TC-0004 与 TC-0005 共用同一个方法、校验有先后，用来考「证明拦下它的是这条规则」（第 6 条）。
 - TC-0006 最后一行是页面表现，考按行归层而不是整条定性。
 - TC-0008 / 0009 / 0010 分别对应仅人工、无实现、判据未定，让四态都有一条。
+
+## description 触发评测
+
+`trigger-eval.json` 是 20 条「该触发 / 不该触发」的近义查询，给 skill-creator 的 `run_loop.py` 用。官方脚本在 Windows 上用 `select()` 读管道会失败，工作区里有一份用线程读 stdout 的副本。跑法：
+
+```bash
+python -m scripts.run_loop --eval-set evals/trigger-eval.json --skill-path . --model sonnet --max-iterations 5 --verbose
+```
+
+循环把集合按 60/40 切成 train/test，最多 5 轮改 description，按 **test 集分数** 选最优，避免只在训练句上变好。

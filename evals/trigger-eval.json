@@ -1,0 +1,22 @@
+[
+  {"query": "用例在 D:\\cases\\存储费管理\\存储费管理-测试用例.md，项目在 D:\\work\\wms-fee，对着用例把能单测的写成单测", "should_trigger": true},
+  {"query": "测试那边把对账单管理的用例定稿了，41 条，在 doc/testcases 下面。帮我补单测，哪些能自动化就写哪些，剩下的登记一下", "should_trigger": true},
+  {"query": "我们 testcase-design 出来的 csv 用例（预提费-测试用例.csv）要落成 JUnit5 单测，mock 用 Mockito，mapper 是 MyBatis Plus 的链式查询，先探一下环境再写", "should_trigger": true},
+  {"query": "帮我核对一下 ReconServiceTest 里的断言是不是跟用例判据一致，我怀疑有几条是照着代码现状写的", "should_trigger": true},
+  {"query": "想在 CI 里加一道门禁：每条 TC 编号都要能追溯到测试方法，测试里引用的 TC 号也必须在用例文档里存在。有现成做法吗", "should_trigger": true},
+  {"query": "上次写的单测跑了有 3 条红的，开发说是用例写错了。按流程我该怎么处理这几条，报告怎么写", "should_trigger": true},
+  {"query": "用例更新了，TC-0012 的判据改了还新增了两条，之前的单测要怎么跟着改，矩阵要重做吗", "should_trigger": true},
+  {"query": "pytest 项目，功能用例是 xmind 导出的 markdown，带 TC 编号。想把规则层的用例写成自动化测试，纯函数的单独分一组秒级回归", "should_trigger": true},
+  {"query": "存储费计算那块只补 TC-0001 到 TC-0004 这四条的单测就行，别的先不动，矩阵在原来那份上追加", "should_trigger": true},
+  {"query": "给这个需求出一份自动化覆盖矩阵，每条用例落到哪个类哪个方法、哪些行人工验、哪些要真库，然后按矩阵把测试写出来", "should_trigger": true},
+  {"query": "帮我给 OrderService 这个类补一下单测，覆盖率太低了，主要是 createOrder 和 cancelOrder 两个方法", "should_trigger": false},
+  {"query": "这是存储费管理的 PRD（飞书文档链接），帮我设计一套功能测试用例，要 XMind 格式的", "should_trigger": false},
+  {"query": "测试同学写的这 41 条用例我觉得质量一般，帮我评审一下，哪些判据不清楚、哪些漏了边界", "should_trigger": false},
+  {"query": "mvn test 跑的时候 @Nested 内部类里的测试全部 Tests run: 0，但 BUILD SUCCESS，这是什么原因", "should_trigger": false},
+  {"query": "把这份定稿的测试用例 markdown 转成 Excel，列要有用例编号、前置条件、步骤、预期结果", "should_trigger": false},
+  {"query": "帮我写一个 Testcontainers 起 MySQL 的集成测试，验证对账单的 SQL 聚合口径", "should_trigger": false},
+  {"query": "用 Playwright 写一下账单列表页的 UI 自动化，验证金额千分位和待审核标签是橙色", "should_trigger": false},
+  {"query": "StorageFeeCalculator 的 monthlyFee 四舍五入写成了 DOWN，帮我把实现改成 HALF_UP 并把对应的单测改过来", "should_trigger": false},
+  {"query": "我们团队单测规范要写一份 wiki，讲讲断言该怎么写、mock 该打在哪、什么情况算假绿，帮我起个草稿", "should_trigger": false},
+  {"query": "这个接口的性能测试用例怎么设计，并发 200 下响应时间要求 300ms 以内", "should_trigger": false}
+]
