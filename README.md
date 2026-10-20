@@ -31,7 +31,7 @@ Agent 只写纯口径层和规则层的测试。页面表现和必须连真库�
 
 ## 交付物
 
-都落在**被测项目**的 `doc/testcases/` 和测试源码树里，不在本 skill 仓库：自动化覆盖矩阵、评审记录、失败定位清单、七节单测报告，以及分层测试代码。各份的模板与「通过」的判定条件见 [references/stage-contracts.md](references/stage-contracts.md) 阶段 5。
+都落在**被测项目**的 `doc/testcases/` 和测试源码树里，不在本 skill 仓库：自动化覆盖矩阵、评审记录、七节单测报告（第 6 节即失败定位），以及分层测试代码。各份的模板与「通过」的判定条件见 [references/stage-contracts.md](references/stage-contracts.md) 阶段 5。
 
 交付前 Agent 会跑追溯校验，退出码非 0 时报告结论只能是「未完成」：
 
