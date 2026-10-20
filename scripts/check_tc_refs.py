@@ -14,8 +14,8 @@
   1. 悬空引用   测试引用了用例文档里不存在的编号      → 门禁失败
   2. 裸号引用   引用没带文件名（编号跨文件会重复）        → 分级告警
   3. 疑似虚报   编号只在注释里声称、没对应用例名声明     → 告警
-  4. 未覆盖     用例文档里的编号没有任何测试引用        → 统计
-  5. 矩阵对账   传了 --matrix 才做：A 虚报已写 / B 漏登 / C 零归属 → 门禁失败；D 逐条方法数 → 咨询
+  4. 未覆盖     用例文档里的编号没有任何测试引用        → 传 --matrix 时门禁失败，否则仅统计
+  5. 矩阵对账   传了 --matrix 才做：A 虚报已写 / B 漏登 / C 零归属 / E 残留待写 → 门禁失败；D 逐条方法数 → 咨询
   6. 仅 impl    编号只被带 impl 标记的方法引用、没有一条 case 断言 → 门禁失败
                 （impl 不得用来覆盖用例已写明的判据；标记识别是启发式，
                   误报时用 --impl-tag-pattern 对齐项目的标记写法，不要关掉）
@@ -33,7 +33,7 @@
   编号不是 TC-     → --tc-prefix CASE-
   编号不是 4 位    → --tc-width 3
   不是 JUnit5      → --test-marker "def test_"（pytest）/ "it("（jest）/ "func Test"（go），
-                     并配 --test-annotation-pattern（见 --help）
+                     并配 --test-annotation-pattern（见 --help；pytest/go 把 文件名#编号 写在该声明行的行尾注释）
   文档后缀不同      → --doc-glob "*.markdown,*.csv"（逗号分隔多个模式）
   非中文项目        → --negation-pattern "not covered|uncovered|N/A"
   impl 标记不同    → --impl-tag-pattern "pytest[.]mark[.]impl"（pytest）/ "[[]impl[]]"（jest 用例名里）
@@ -42,8 +42,8 @@ Windows PowerShell 下管道会按控制台代码页解码导致中文乱码，�
   1) 先执行 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
   2) 用 --out 写到 UTF-8 文件再看
 
-退出码: 0 = 门禁通过；1 = 门禁失败（悬空引用、裸号真歧义或指向不存在、矩阵对账 A/B/C、
-        归属总账不自洽、仅 impl 覆盖）；2 = 参数或读取错误
+退出码: 0 = 门禁通过；1 = 门禁失败（悬空引用、裸号真歧义或指向不存在、矩阵模式下未覆盖 > 0、
+        矩阵对账 A/B/C/E、归属总账不自洽、仅 impl 覆盖）；2 = 参数或读取错误
 """
 
 import argparse
@@ -194,13 +194,13 @@ def _selftest():
     mtxt = ('| TC 引用 | 明细行 | 预期方法数 | 状态 |\n|---|---|---|---|\n'
             '| a.md#TC-0001 | 2 | 3 | 已写 |\n'
             '| TC 引用 | 定性 | 明细行 | 状态 | 备注 |\n|---|---|---|---|---|\n'
-            '| a.md#TC-0002 | 仅人工 | 1 | 不覆盖（下拉） | 页面控件 |\n')
+            '| a.md#TC-0002 | 仅人工 | 1 | 不覆盖 | 页面控件 |\n')
     with tempfile.TemporaryDirectory() as td:
         mp = Path(td) / 'm.md'
         mp.write_text(mtxt, encoding='utf-8')
         got_rows = load_matrix(mp, build_ref_regex({'a.md': {1, 2}}))
     got_m = [(sorted(n for _md, n in r['tcs']), r['expected'], r['status']) for r in got_rows]
-    want_m = [([1], 3, '已写'), ([2], None, '不覆盖（下拉）')]
+    want_m = [([1], 3, '已写'), ([2], None, '不覆盖')]
     if got_m != want_m:
         bad.append(('load_matrix(双表形)', got_m, want_m))
 
@@ -591,7 +591,8 @@ def main():
     parser.add_argument('--tc-width', type=int, default=4, help='编号补零位数，默认 4')
     parser.add_argument('--test-marker', default='@DisplayName',
                         help='用例名声明行的标记，默认 @DisplayName（JUnit5）；'
-                             'pytest 用 "def test_"，jest 用 "it("，go 用 "func Test"')
+                             'pytest 用 "def test_"，jest 用 "it("，go 用 "func Test"'
+                             '（pytest/go 需把 文件名#编号 写在该声明行的行尾注释）')
     parser.add_argument('--doc-glob', default='*.md,*.csv',
                         help='用例文档文件名模式，逗号分隔多个，默认 *.md,*.csv')
     parser.add_argument('--negation-pattern', default=None,
@@ -685,7 +686,7 @@ def main():
         except ValueError as exc:
             print('[ERROR] %s' % exc)
             return 2
-        # 状态写「不覆盖（原因）」= 有意不做，不再算进未覆盖
+        # 状态写「不覆盖」（原因放备注列）= 有意不做，不再算进未覆盖（兼容旧版带括号写法）
         waived_keys = {k for row in rows if re.match(r'[`*\s]*不覆盖', row['status'])
                        for k in row['tcs']}
         waived = [k for k in uncovered if k in waived_keys]
@@ -775,14 +776,17 @@ def main():
     print()
 
     print('【4】未覆盖编号（既无测试、也没在代码或矩阵里声明不覆盖）: %d' % len(uncovered))
-    if uncovered and not args.quiet:
-        current = None
-        for md_name, n in uncovered:
-            if md_name != current:
-                print('  %s' % md_name)
-                current = md_name
-            print('    %s' % fmt_tc(n), end='')
-        print()
+    if uncovered:
+        if rows is not None:
+            fail = True
+        if not args.quiet:
+            current = None
+            for md_name, n in uncovered:
+                if md_name != current:
+                    print('  %s%s' % ('🔴 ' if rows is not None else '', md_name))
+                    current = md_name
+                print('    %s' % fmt_tc(n), end='')
+            print()
     print()
 
     # ---- 方法归属（矩阵对账与「仅 impl」检查共用）----
@@ -796,18 +800,22 @@ def main():
     if rows is not None:
         matrix_tcs = set()
         written_tcs = set()
+        pending_rows = []
         expected_sum = 0
         for row in rows:
             matrix_tcs |= row['tcs']
-            if '已写' in row['status']:
+            st = row['status'].strip()
+            if '已写' in st:
                 written_tcs |= row['tcs']
+            elif not re.match(r'[`*\s]*不覆盖', st):
+                pending_rows.append((row['line'], sorted(row['tcs']), st))
             if row['expected'] is not None:
                 expected_sum += row['expected']
 
         attributed = total_methods - len(unattributed)
         print('【5】矩阵对账（%s）' % matrix_path.name)
-        print('  矩阵行数 %d，涵盖编号 %d 个，标「已写」的编号 %d 个'
-              % (len(rows), len(matrix_tcs), len(written_tcs)))
+        print('  矩阵行数 %d，涵盖编号 %d 个，标「已写」的编号 %d 个，未收口（待写等）%d 行'
+              % (len(rows), len(matrix_tcs), len(written_tcs), len(pending_rows)))
         print('  测试方法 %d 个：已归属 %d、无法归属 %d（impl 类测试无编号属正常）'
               % (total_methods, attributed, len(unattributed)))
         print('  矩阵预期方法数合计 %d（❗一行盖多条编号时会重复计，'
@@ -868,6 +876,18 @@ def main():
                       % (lineno, md_name, fmt_tc(n), exp, act))
             print('     ↳ 归属是小数：一个标记盖了多条编号、按 1/N 分摊，改成方法级标注可让本项变准；'
                   '归属是整数：实际方法数就是和矩阵预期不同，改矩阵或补测试')
+
+        # E 矩阵未收口状态：自动化表只允许「已写」，手工与阻塞表只允许「不覆盖」；
+        #   残留「待写」或「部分」等状态直接判门禁失败
+        if pending_rows:
+            fail = True
+            print('  🔴 E 矩阵存在未收口状态（只允许「已写」或「不覆盖」，不得留「待写」/「部分」）: %d 行'
+                  % len(pending_rows))
+            for lineno, keys, st in pending_rows:
+                tc_str = ', '.join('%s#%s' % (m, fmt_tc(n)) for m, n in keys)
+                print('     第%d行  [%s]  %s' % (lineno, st or '空', tc_str))
+        else:
+            print('  ✅ E 矩阵状态已全部收口（无待写）')
 
         if unattributed and not args.quiet:
             print('  ℹ️  无法归属的测试方法（impl 类无编号属正常，判据类则是漏标注）:')

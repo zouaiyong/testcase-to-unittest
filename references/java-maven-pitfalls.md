@@ -236,10 +236,11 @@ mvn -pl <被测模块> org.jacoco:jacoco-maven-plugin:0.8.12:prepare-agent test 
 
 报告在 `<模块>/target/site/jacoco/jacoco.xml`。再和分支 diff 求交：
 
-- 基线默认 `origin/master`。用 `git diff -U0 origin/master...HEAD -- *.java` 取出 `src/main/java` 的新增和修改行。
+- 基线默认 `origin/master`（或 `origin/main`）。用 `git diff -U0 origin/master...HEAD -- *.java` 取出 `src/main/java` 的新增和修改行。
 - 一行算进分母，当且仅当它既在 diff 里，又出现在 JaCoCo 的 `line` 节点上。注释、空行、import 没有 `line` 节点，不算。
 - `ci > 0` 算已覆盖。失败用例在断言前执行过的行算已覆盖。
 - 基线上已有、本分支没改的类（启动类、公共配置）在 JaCoCo 全量里，不在 diff 里，必须剔掉。不要直接抄 JaCoCo HTML 首页的整模块百分比。
 - 同一分支还有别的需求时，只保留本需求相关的改动文件进这份报告的分母。类表要写到未覆盖的方法名。
+- **无基线分支或 diff 为空时的回退**：若目录不在 git 仓库、无远端/基线分支（如评测复制到仓库外独立目录的 fixture），或给存量已合入代码补单测导致 `base...HEAD` 下 `src/main/java` 无 diff，在报告中写明原因，改为取「阶段 1 定性识别出的被测生产类」在 JaCoCo XML 中的 `line` 节点作为分母（仍剔除与本需求无关的其他类，不直接抄整模块百分比）。
 
 用例范围写了不测的入口，覆盖率可以是 0。写明原因即可，不要为了百分比去补那批测试，也不要改开发代码。
