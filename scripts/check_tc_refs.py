@@ -187,6 +187,23 @@ def _selftest():
     if got != [1, 2]:
         bad.append(('_csv_numbers', got, [1, 2]))
 
+    # 矩阵双表形：自动化表（有预期方法数）与手工表（只有定性+状态）都要解析，
+    # 手工表行 expected 为 None、状态原样带出；只有状态、两样都没有的表不认
+    configure('TC-', 4, '@DisplayName', '*.md,*.csv', None)
+    import tempfile
+    mtxt = ('| TC 引用 | 明细行 | 预期方法数 | 状态 |\n|---|---|---|---|\n'
+            '| a.md#TC-0001 | 2 | 3 | 已写 |\n'
+            '| TC 引用 | 定性 | 明细行 | 状态 | 备注 |\n|---|---|---|---|---|\n'
+            '| a.md#TC-0002 | 仅人工 | 1 | 不覆盖（下拉） | 页面控件 |\n')
+    with tempfile.TemporaryDirectory() as td:
+        mp = Path(td) / 'm.md'
+        mp.write_text(mtxt, encoding='utf-8')
+        got_rows = load_matrix(mp, build_ref_regex({'a.md': {1, 2}}))
+    got_m = [(sorted(n for _md, n in r['tcs']), r['expected'], r['status']) for r in got_rows]
+    want_m = [([1], 3, '已写'), ([2], None, '不覆盖（下拉）')]
+    if got_m != want_m:
+        bad.append(('load_matrix(双表形)', got_m, want_m))
+
     # 方法归属：没写标记的方法不能领走邻居的标记；与声明同行的标记归该方法自己
     java = ('class T {\n'
             '    @Test\n'
@@ -392,12 +409,13 @@ def load_matrix(path, re_ref):
         if is_header:
             exp = next((j for j, c in enumerate(cells) if '预期方法数' in c), None)
             sta = next((j for j, c in enumerate(cells) if '状态' in c), None)
-            if exp is not None and sta is not None:
+            has_qual = any('定性' in c for c in cells)
+            if sta is not None and (exp is not None or has_qual):
                 col_expected, col_status, seen_header = exp, sta, True
             else:
                 col_expected = col_status = None   # 其他表格，重置列映射
             continue
-        if col_expected is None:
+        if col_status is None:
             continue
         tcs = set()
         for _md, first, tail in re_ref.findall(line):
@@ -405,7 +423,7 @@ def load_matrix(path, re_ref):
                 tcs.add((_md, n))
         if not tcs:
             continue           # 不含编号的行（小标题行、合计行）跳过
-        raw = cells[col_expected] if col_expected < len(cells) else ''
+        raw = cells[col_expected] if col_expected is not None and col_expected < len(cells) else ''
         digits = re.sub(r'\D', '', raw)
         rows.append({
             'tcs': tcs,
@@ -415,7 +433,7 @@ def load_matrix(path, re_ref):
         })
     if not seen_header:
         raise ValueError(
-            '矩阵里找不到表头：需同时含「预期方法数」与「状态」两列（%s）' % path)
+            '矩阵里找不到表头：需含「状态」列，且含「预期方法数」或「定性」列（%s）' % path)
     return rows
 
 
@@ -579,7 +597,7 @@ def main():
     parser.add_argument('--negation-pattern', default=None,
                         help='「声明不覆盖」的正则，默认中文词表；非中文项目必须显式传')
     parser.add_argument('--matrix', default=None,
-                        help='覆盖矩阵文件（Markdown 表格，需含「预期方法数」与「状态」两列）；'
+                        help='覆盖矩阵文件（Markdown 表格，需含「状态」列，且含「预期方法数」或「定性」列）；'
                              '传入后额外做矩阵↔代码对账')
     parser.add_argument('--test-annotation-pattern',
                         default=r'^\s*@(Test|ParameterizedTest|RepeatedTest|TestFactory)\b',
@@ -606,7 +624,7 @@ def main():
             for name, got, want in bad:
                 print('  %s -> %s，应为 %s' % (name, got, want))
             return 1
-        print('SELFTEST PASS —— 编号展开、分隔行、CSV 编号列、方法归属、impl 识别的回归用例全部通过')
+        print('SELFTEST PASS —— 编号展开、分隔行、CSV 编号列、矩阵双表形、方法归属、impl 识别的回归用例全部通过')
         return 0
 
     if args.out:
