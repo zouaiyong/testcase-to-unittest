@@ -89,7 +89,23 @@ surefire 2.22.2 实测：测试方法全部放在 `@Nested` 内部类里时，
 
 **处置**：跑全量，或用 `-Dtest=SomeTest*`。**永远靠 `Tests run: N` 判断，不靠 BUILD SUCCESS。**
 
-## 🔴 坑 3：`RETURNS_SELF` 会把泛型终结方法也当成链式中间方法
+输出里根本没有 `Tests run` 这一行时见坑 3。
+
+## 🔴 坑 3：`maven.test.skip` / `skipTests` 让退出码变成假绿
+
+Maven 3.9.16、compiler 3.8.1、surefire 2.22.2 实测。根 pom 的 `<properties>` 写 `<maven.test.skip>true</maven.test.skip>` 时，子模块直接 `mvn test`：
+
+- compiler 打 `Not compiling test sources`，测试源码不编译
+- surefire 打 `Tests are skipped.`
+- 输出里没有 `Tests run`
+- 退出码 0，`BUILD SUCCESS`
+- 同一条必然会失败的测试，加上 `-Dmaven.test.skip=false` 后是 `Tests run: 1, Failures: 1`，退出码 1
+
+`skipTests`（命令行 `-DskipTests`，同时用 `-Dmaven.test.skip=false` 关掉上面的属性）只打 `Tests are skipped.`，测试源码仍会编译，同样没有 `Tests run`，退出码仍是 0。
+
+**处置**：没有结果摘要就是没跑，按硬约束 4 处理，不能写成 0 失败 0 错误 0 跳过。阶段 0 查根 pom 和父 pom 的 `maven.test.skip`、`skipTests`。要真正跑起来可以加 `-Dmaven.test.skip=false`；若还有 `skipTests`，再加 `-DskipTests=false`。通过与否仍然只认重跑之后的摘要行。
+
+## 🔴 坑 4：`RETURNS_SELF` 会把泛型终结方法也当成链式中间方法
 
 mock ORM 的链式查询时，`RETURNS_DEEP_STUBS` 会因泛型擦除在链式调用中抛 NPE，
 所以要改用 `RETURNS_SELF`。但 `RETURNS_SELF` 的判定是
@@ -108,7 +124,7 @@ mock ORM 的链式查询时，`RETURNS_DEEP_STUBS` 会因泛型擦除在链式�
 
 显式覆盖了 `one()` 的测试类会掩盖这个 bug，所以它只在**依赖默认值的类**里爆发。
 
-## 🟠 坑 4：链式 mock 吞掉查询条件 → 维度类判据原理上不可断言
+## 🟠 坑 5：链式 mock 吞掉查询条件 → 维度类判据原理上不可断言
 
 `RETURNS_SELF` 让链上所有 `eq/in/ge/le/last/orderBy` 变成返回自身的空操作，
 **WHERE 条件完全不可验证**。凡是判据写成「按 X+Y+Z 维度查询/查重/统计」的用例都中招。
@@ -124,18 +140,18 @@ mock ORM 的链式查询时，`RETURNS_DEEP_STUBS` 会因泛型擦除在链式�
 
 **验不了就在 `@DisplayName` 里明说验不了，禁止空头承诺。**
 
-## 🟠 坑 5：链式 mock 只能用于 Service，不能用于 Mapper
+## 🟠 坑 6：链式 mock 只能用于 Service，不能用于 Mapper
 
 `BaseMapper` 没有 `lambdaQuery()`，把链式 mock 辅助方法套上去会 ClassCastException。
 Mapper 一律直接 `when(mapper.xxx(...)).thenReturn(...)` 打桩。
 
-## 🟠 坑 6：ORM 的 lambda 缓存需要手动预热
+## 🟠 坑 7：ORM 的 lambda 缓存需要手动预热
 
 不起容器时实体未被扫描注册，lambda 方法引用（`Entity::getField`）会抛
 `can not find lambda cache`。在 `@BeforeEach` 里对**每个出现在 lambda 引用中的实体**
 调用一次 `TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""), Entity.class)`。
 
-## 🟠 坑 7：Bean Validation 注解在 Controller 层触发，直接调 Service 测不到
+## 🟠 坑 8：Bean Validation 注解在 Controller 层触发，直接调 Service 测不到
 
 `@NotEmpty` / `@NotBlank` / `@Size` 由 Spring MVC 的 `@Validated` 在入参绑定时触发。
 不起容器就直接调业务方法，这些校验**一条都不会执行**。
@@ -155,7 +171,7 @@ Set<ConstraintViolation<T>> violations = validator.validate(po);
 - 按 `propertyPath` 取单条时，返回 `null` 无法区分「无违规」与「路径名写错」；
   用于 `assertNull` 断言「应放行」时**必须在同一用例内配一条正向断言兜底**，否则路径打错就是永真断言
 
-## 🟡 坑 8：`@Tag` 沿嵌套类层级叠加
+## 🟡 坑 9：`@Tag` 沿嵌套类层级叠加
 
 `@Nested` 内部类会继承外层类的 Tag，方法级 Tag 是**追加**不是覆盖。
 所以「外层 `@Tag("case")` + 方法 `@Tag("impl")`」的测试同时带两个 Tag，
@@ -165,14 +181,14 @@ Set<ConstraintViolation<T>> violations = validator.validate(po);
 并每次做加减核对：`全量 = 判据门禁（含失败）+ 带 impl 标记的测试（纯 impl + case/impl 叠加）`，对不上说明 Tag 打错了。
 或者干脆**不在嵌套类上打 Tag，逐个方法打**（更啰嗦但无歧义）。
 
-## 🟡 坑 9：静态上下文调用需要 inline mock maker
+## 🟡 坑 10：静态上下文调用需要 inline mock maker
 
 业务代码里若有 `XxxHolder.user()` 这类静态调用，需要 `mockStatic`。
 **Mockito 5.x 之前必须额外引入 `mockito-inline`**，只有 `mockito-core` 会直接抛异常。
 
 先 grep 出静态调用点，确认它们是否落在被测路径上——不在就完全不需要引入这个依赖。
 
-## 🟡 坑 10：断言 `BigDecimal` 要同时锁值和小数位
+## 🟡 坑 11：断言 `BigDecimal` 要同时锁值和小数位
 
 `assertEquals(new BigDecimal("1.0"), new BigDecimal("1.0000"))` **会失败**（`equals` 比 scale），
 但用 `compareTo` 又会漏掉「精度位数不对」这个真正的判据。
@@ -180,7 +196,7 @@ Set<ConstraintViolation<T>> violations = validator.validate(po);
 **处置**：统一用 `toPlainString()` 比对字符串。
 既锁数值又锁 scale，还顺带避开科学计数法。
 
-## 🟡 坑 11：`mvn clean` 在离线模式可能因插件依赖缺失而失败
+## 🟡 坑 12：`mvn clean` 在离线模式可能因插件依赖缺失而失败
 
 `-o`（离线）下若本地仓库缺 clean 插件的传递依赖（如 `maven-shared-utils`），
 会报 `A required class was missing`。这是环境问题，与测试代码无关。
