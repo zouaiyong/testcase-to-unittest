@@ -101,9 +101,19 @@ Maven 3.9.16、compiler 3.8.1、surefire 2.22.2 实测。根 pom 的 `<propertie
 - 退出码 0，`BUILD SUCCESS`
 - 同一条必然会失败的测试，加上 `-Dmaven.test.skip=false` 后是 `Tests run: 1, Failures: 1`，退出码 1
 
-`skipTests`（命令行 `-DskipTests`，同时用 `-Dmaven.test.skip=false` 关掉上面的属性）只打 `Tests are skipped.`，测试源码仍会编译，同样没有 `Tests run`，退出码仍是 0。
+`skipTests`（pom `<properties>` 里 `<skipTests>true</skipTests>`，或命令行 `-DskipTests`）只打 `Tests are skipped.`，测试源码仍会编译，同样没有 `Tests run`，退出码仍是 0。
 
-**处置**：没有结果摘要就是没跑，按硬约束 4 处理，不能写成 0 失败 0 错误 0 跳过。阶段 0 查根 pom 和父 pom 的 `maven.test.skip`、`skipTests`。要真正跑起来可以加 `-Dmaven.test.skip=false`；若还有 `skipTests`，再加 `-DskipTests=false`。通过与否仍然只认重跑之后的摘要行。
+跳过还有第三种写法：surefire 插件的 `<configuration><skip>true</skip></configuration>`（含 `pluginManagement` 里的）。现象同 `skipTests`，但**命令行 `-Dmaven.test.skip=false -DskipTests=false` 关不掉它**，实测仍是 `Tests are skipped.`、退出码 0。插件 `<configuration>` 里写死的值优先于属性，只有改 pom 才能关。
+
+三种写法与命令行能否关掉：
+
+| 跳过写在哪 | 直接 `mvn test` | 命令行 `-Dmaven.test.skip=false -DskipTests=false` |
+|---|---|---|
+| `<properties>` 里 `maven.test.skip=true` | `Not compiling test sources` + `Tests are skipped.`，退出码 0 | 测试执行，有 `Tests run` |
+| `<properties>` 里 `skipTests=true` | `Tests are skipped.`，退出码 0 | 测试执行，有 `Tests run` |
+| surefire `<configuration><skip>true</skip>` | `Tests are skipped.`，退出码 0 | **仍跳过**，退出码 0 |
+
+**处置**：没有结果摘要就是没跑，按硬约束 4 处理，不能写成 0 失败 0 错误 0 跳过。阶段 0 查根 pom、父 pom 的 `<properties>`，以及 surefire 的 `<configuration>`（含 `pluginManagement`）。属性写法加 `-Dmaven.test.skip=false -DskipTests=false` 就能跑起来；`<configuration><skip>` 写法命令行关不掉，停下来报告用户，由用户决定怎么处理。pom 属于生产代码，不得为了把测试跑起来改它。通过与否仍然只认重跑之后的摘要行。
 
 ## 🔴 坑 4：`RETURNS_SELF` 会把泛型终结方法也当成链式中间方法
 
